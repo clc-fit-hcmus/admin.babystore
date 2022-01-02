@@ -1,14 +1,14 @@
-var createError = require('http-errors');
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
-var expressHbs =  require('express-handlebars');
+const createError = require('http-errors');
+const express = require('express');
+const path = require('path');
+const cookieParser = require('cookie-parser');
+const logger = require('morgan');
+const expressHbs =  require('express-handlebars');
 
-var indexRouter = require('./routes');
-var usersRouter = require('./routes/users');
+const indexRouter = require('./routes');
+const usersRouter = require('./routes/users');
 
-var app = express();
+const app = express();
 
 const hbs = expressHbs.create({
   defaultLayout: 'layout', 
@@ -52,6 +52,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', indexRouter);
 app.use('/staff-list', indexRouter);
+app.use('/inventory', indexRouter);
+app.use('/register', indexRouter);
+app.use('/up', indexRouter);
 app.use('/users', usersRouter);
 
 // catch 404 and forward to error handler
