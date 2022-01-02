@@ -4,11 +4,20 @@ const path = require('path');
 const cookieParser = require('cookie-parser');
 const logger = require('morgan');
 const expressHbs =  require('express-handlebars');
+const moment = require('moment');
+const session = require('express-session');
+const passport = require('passport');
+const flash = require('connect-flash');
+const validator = require('express-validator');
 
 const indexRouter = require('./routes');
 const usersRouter = require('./routes/users');
+const staffRouter = require('./components/staff');
+const reposRouter = require('./components/repository');
 
 const app = express();
+
+require('./config/passport');
 
 const hbs = expressHbs.create({
   defaultLayout: 'layout', 
@@ -23,9 +32,22 @@ const hbs = expressHbs.create({
     },
     times: function(n, block) {
       var accum = '';
-      for(var i = 1; i < n + 1; ++i)
-          accum += block.fn(i);
+      for(var i = 1; i < n + 1; ++i) {
+        accum += block.fn(i);
+      }
+      
       return accum;
+    },
+    timesWithConst: function(n, constant, block) {
+      var accum = '';
+      for(var i = 1; i < n + 1; ++i) {
+        accum += block.fn(i + " " + constant);
+      }
+      
+      return accum;
+    },
+    getSplit: function(string, split, n) {
+      return (string.split(split))[n];
     },
     for: function(from, to, incr, block) {
       var accum = '';
@@ -36,6 +58,72 @@ const hbs = expressHbs.create({
     dateFormat: function (date, options) {
       const formatToUse = (arguments[1] && arguments[1].hash && arguments[1].hash.format) || "DD/MM/YYYY"
       return moment(date).format(formatToUse);
+    },
+    price: function (number) { return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') },
+    compare: function(lvalue, rvalue, options) {
+
+      if (arguments.length < 3)
+          throw new Error("Handlerbars Helper 'compare' needs 2 parameters");
+  
+      var operator = options.hash.operator || "==";
+  
+      var operators = {
+          '==':       function(l,r) { return l == r; },
+          '===':      function(l,r) { return l === r; },
+          '!=':       function(l,r) { return l != r; },
+          '<':        function(l,r) { return l < r; },
+          '>':        function(l,r) { return l > r; },
+          '<=':       function(l,r) { return l <= r; },
+          '>=':       function(l,r) { return l >= r; },
+          'typeof':   function(l,r) { return typeof l == r; }
+      }
+  
+      if (!operators[operator])
+          throw new Error("Handlerbars Helper 'compare' doesn't know the operator "+operator);
+  
+      var result = operators[operator](lvalue,rvalue);
+  
+      if( result ) {
+          return options.fn(this);
+      } else {
+          return options.inverse(this);
+      }
+  
+    },
+    splitAndCompare: function(value, p, options) {
+      const split = value.split(p);
+      const lvalue = split[0];
+      const rvalue = split[1];
+
+      if (arguments.length < 2)
+          throw new Error("Handlerbars Helper 'splitAndCompare' needs 2 parameters");
+  
+      var operator = options.hash.operator || "==";
+  
+      var operators = {
+          '==':       function(l,r) { return l == r; },
+          '===':      function(l,r) { return l === r; },
+          '!=':       function(l,r) { return l != r; },
+          '<':        function(l,r) { return l < r; },
+          '>':        function(l,r) { return l > r; },
+          '<=':       function(l,r) { return l <= r; },
+          '>=':       function(l,r) { return l >= r; },
+          'typeof':   function(l,r) { return typeof l == r; }
+      }
+  
+      if (!operators[operator])
+          throw new Error("Handlerbars Helper 'compare' doesn't know the operator "+operator);
+  
+      var result = operators[operator](lvalue,rvalue);
+
+      console.log("--------" + lvalue + "------" + rvalue + "------" + result);
+  
+      if( result ) {
+          return options.fn(this);
+      } else {
+          return options.inverse(this);
+      }
+  
     }
   }
 });
@@ -47,15 +135,36 @@ app.set('view engine', '.hbs');
 app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+app.use(validator());
 app.use(cookieParser());
+app.use(session({ 
+  secret: 'manager.babystore', 
+  resave: false, 
+  saveUninitialized: false
+}));
+app.use(flash());
+app.use(passport.initialize());
+app.use(passport.session());
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.use(function(req, res, next) {
+  res.locals.login = req.isAuthenticated();
+  res.locals.session = req.session;
+  next();
+})
+
 app.use('/', indexRouter);
-app.use('/staff-list', indexRouter);
-app.use('/inventory', indexRouter);
+app.use('/profile', indexRouter);
 app.use('/register', indexRouter);
 app.use('/up', indexRouter);
 app.use('/users', usersRouter);
+
+app.use('/', staffRouter);
+app.use('/staff-list', staffRouter);
+
+app.use('/', reposRouter);
+app.use('/inventory', reposRouter);
+app.use('/importing', reposRouter);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
